@@ -292,7 +292,7 @@ def analyze_macd_divergence_bottom(stock_data, m=5, stock_name=''):
     print("最大亏损：{:.2f}%".format(max_loss))
     print("中位数收益：{:.2f}%".format(median_return))
 
-stock_code = "sh.600733"
+stock_code = "sz.000333"
 stock_data = get_stock_data(stock_code, interval='monthly', start_date='2000-01-01')
 analyze_stock_data(stock_data)
 analyze_trend_break(stock_data)
