@@ -336,11 +336,12 @@ class StockStrategySimulator:
         return should_buy, expectation, interval_type
 
 # stock_code = "sh.600418"
-interval_type = 'daily'
-# interval_type = 'monthly'
+# interval_type = 'daily'
+interval_type = 'monthly'
 
-start_date = '2018-01-01'
-end_date = '2024-03-29'
+start_date = '2000-01-01'
+# start_date = '2018-01-01'
+end_date = '2024-04-01'
 
 stock_code_code_list = ['sh.600418', 'sh.600733', 'sh.600863', 'sh.600938', 'sh.601127', 'sz.000333', 'sz.000628', 'sz.301236', 'sz.300570']
 # stock_data = StockStrategySimulator.get_stock_data(stock_code, interval=interval_type, start_date='2023-01-01', end_date='2024-03-24')
