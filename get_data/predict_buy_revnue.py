@@ -1,9 +1,11 @@
 import os
+import time
 
 import numpy as np
 import pandas as pd
 import baostock as bs
 import talib
+from initial import stock_code_to_company, interval_to_str
 
 
 class StockStrategySimulator:
@@ -56,7 +58,7 @@ class StockStrategySimulator:
         return result
 
     @staticmethod
-    def analyze_stock_data(stock_data):
+    def analyze_stock_data_macd_kdj(stock_data, stock_name, interval=''):
         # Convert object columns to numeric
         stock_data = stock_data.apply(pd.to_numeric, errors='ignore')
 
@@ -99,7 +101,7 @@ class StockStrategySimulator:
         median_return = golden_cross_returns.median()
 
         print()
-        print(f"当前是否金叉：{is_golden_cross}")
+        print(f"{stock_name}当前是否金叉：{is_golden_cross}")
         print("金叉后的收益情况：")
         # print(golden_cross_returns)
         print("收益概率：{:.2f}%".format(positive_probability))
@@ -107,9 +109,10 @@ class StockStrategySimulator:
         print("最大收益：{:.2f}%".format(max_gain))
         print("最大亏损：{:.2f}%".format(max_loss))
         print("中位数收益：{:.2f}%".format(median_return))
+        return is_golden_cross, positive_probability, golden_cross_returns.mean()
 
     @staticmethod
-    def analyze_trend_break(stock_data, days=10):
+    def analyze_trend_break(stock_data, stock_name, days=10, interval='daily'):
         # Convert 'close' column to numeric
         stock_data['close'] = pd.to_numeric(stock_data['close'], errors='coerce')
 
@@ -159,27 +162,29 @@ class StockStrategySimulator:
         median_return_X_day_10_day = trend_break_X_day_returns_10_day.median()
 
         print()
-        print("当前是否跌破上升趋势：")
+        print(f"{stock_name}当前是否跌破上升趋势：")
         print(f"MA5：{is_5_trend_break}, MA10：{is_10_trend_break}")
-        print(f"跌破MA5线后的{days}(天或周或月)收益情况：")
+        print(f"跌破MA5线后的{days}{interval_to_str[interval]}收益情况：")
         # print(trend_break_X_day_returns_5_day)
         print("收益概率（跌破MA5线）：{:.2f}%".format(positive_probability_5_day))
         print("数学期望（平均收益，跌破MA5线）：{:.2f}%".format(average_return_5_day))
-        print("最大收益（跌破MA5线，{}天后）：{:.2f}%".format(days, max_gain_X_day_5_day))
-        print("最大亏损（跌破MA5线，{}天后）：{:.2f}%".format(days, max_loss_X_day_10_day))
-        print("中位数收益（跌破MA5线，{}天后）：{:.2f}%".format(days, median_return_X_day_5_day))
+        print("最大收益（跌破MA5线，{}{}后）：{:.2f}%".format(days, interval_to_str[interval], max_gain_X_day_5_day))
+        print("最大亏损（跌破MA5线，{}{}后）：{:.2f}%".format(days, interval_to_str[interval], max_loss_X_day_5_day))
+        print("中位数收益（跌破MA5线，{}{}后）：{:.2f}%".format(days, interval_to_str[interval], median_return_X_day_5_day))
         print()
-        print(f"跌破MA10线后的{days}(天或周或月)收益情况：")
+        print(f"{stock_name}跌破MA10线后的{days}{interval_to_str[interval]}收益情况：")
         # print(trend_break_X_day_returns_10_day)
         print("收益概率（跌破MA10线）：{:.2f}%".format(positive_probability_10_day))
         print("数学期望（平均收益，跌破MA10线）：{:.2f}%".format(average_return_10_day))
-        print("最大收益（跌破MA10线，{}天后）：{:.2f}%".format(days, max_gain_X_day_10_day))
-        print("最大亏损（跌破MA10线，{}天后）：{:.2f}%".format(days, max_loss_X_day_10_day))
-        print("中位数收益（跌破MA10线，{}天后）：{:.2f}%".format(days, median_return_X_day_10_day))
+        print("最大收益（跌破MA10线，{}{}后）：{:.2f}%".format(days, interval_to_str[interval], max_gain_X_day_10_day))
+        print("最大亏损（跌破MA10线，{}{}后）：{:.2f}%".format(days, interval_to_str[interval], max_loss_X_day_10_day))
+        print("中位数收益（跌破MA10线，{}{}后）：{:.2f}%".format(days, interval_to_str[interval], median_return_X_day_10_day))
         print()
+        return is_5_trend_break, is_10_trend_break, (positive_probability_10_day + positive_probability_5_day) / 2, (
+                    average_return_10_day + average_return_5_day) / 2
 
     @staticmethod
-    def analyze_trend_start(stock_data, x=5, m=10, stock_name=''):
+    def analyze_trend_start(stock_data, x=5, m=10, stock_name='', interval='daily'):
         # Convert 'close' column to numeric
         stock_data['close'] = pd.to_numeric(stock_data['close'], errors='coerce')
 
@@ -187,15 +192,15 @@ class StockStrategySimulator:
         stock_data['x_day_avg'] = stock_data['close'].rolling(window=x).mean()
 
         # Determine if the stock has broken the upward trend for x-day average
-        stock_data['trend_break'] = stock_data['close'] > stock_data['x_day_avg']
+        stock_data['trend_start'] = stock_data['close'] > stock_data['x_day_avg']
 
         # Calculate returns after first breaking the x-day average
-        stock_data['returns_after_break'] = stock_data['close'].pct_change() * 100
-        stock_data['returns_m_days_after_break'] = stock_data['returns_after_break'].shift(-m)
+        stock_data['returns_after_start'] = stock_data['close'].pct_change() * 100
+        stock_data['returns_m_days_after_start'] = stock_data['returns_after_start'].shift(-m)
 
         # Output
-        is_trend_break = stock_data['trend_break'].iloc[-1]
-        returns_m_days_after_break = stock_data[stock_data['trend_break']]['returns_m_days_after_break']
+        is_trend_start = stock_data['trend_start'].iloc[-1]
+        returns_m_days_after_break = stock_data[stock_data['trend_start']]['returns_m_days_after_start']
         positive_returns = returns_m_days_after_break[returns_m_days_after_break > 0]
         positive_probability = len(positive_returns) / len(returns_m_days_after_break) * 100 if len(
             returns_m_days_after_break) != 0 else 0
@@ -206,16 +211,17 @@ class StockStrategySimulator:
 
         print()
         print("股票名称：{}".format(stock_name))
-        print("首次站上 MA{} 后的 {} (天或周或月)收益情况：".format(x, m))
+        print("站上 MA{} 后的 {} {}收益情况：".format(x, m, interval_to_str[interval]))
         # print(returns_m_days_after_break)
         print("收益概率：{:.2f}%".format(positive_probability))
         print("数学期望（平均收益）：{:.2f}%".format(average_return))
         print("最大收益：{:.2f}%".format(max_gain))
         print("最大亏损：{:.2f}%".format(max_loss))
         print("中位数收益：{:.2f}%".format(median_return))
+        return is_trend_start, positive_probability, average_return
 
     @staticmethod
-    def analyze_macd_divergence_top(stock_data, m=5, stock_name=''):
+    def analyze_macd_divergence_top(stock_data, m=5, stock_name='', interval='daily'):
         # Calculate MACD
         stock_data['ema12'] = stock_data['close'].ewm(span=12, adjust=False).mean()
         stock_data['ema26'] = stock_data['close'].ewm(span=26, adjust=False).mean()
@@ -248,7 +254,7 @@ class StockStrategySimulator:
         print()
         print("股票名称：{}".format(stock_name))
         print("当前是否顶背离：{}".format(macd_divergence_type == '顶背离'))
-        print("MACD顶背离后的 {} (天或周或月)收益情况：".format(m))
+        print("MACD顶背离后的 {} {}收益情况：".format(m, interval_to_str[interval]))
         # print(returns_m_days_after_divergence)
         print("当前MACD背离类型：{}".format(macd_divergence_type))
         print("收益概率：{:.2f}%".format(positive_probability))
@@ -256,9 +262,10 @@ class StockStrategySimulator:
         print("最大收益：{:.2f}%".format(max_gain))
         print("最大亏损：{:.2f}%".format(max_loss))
         print("中位数收益：{:.2f}%".format(median_return))
+        return macd_divergence_type == '顶背离', positive_probability, average_return
 
     @staticmethod
-    def analyze_macd_divergence_bottom(stock_data, m=5, stock_name=''):
+    def analyze_macd_divergence_bottom(stock_data, m=5, stock_name='', interval='daily'):
         # Calculate MACD
         stock_data['ema12'] = stock_data['close'].ewm(span=12, adjust=False).mean()
         stock_data['ema26'] = stock_data['close'].ewm(span=26, adjust=False).mean()
@@ -290,7 +297,7 @@ class StockStrategySimulator:
 
         print()
         print("股票名称：{}".format(stock_name))
-        print("MACD底背离后的 {} (天或周或月)收益情况：".format(m))
+        print("MACD底背离后的 {} {}收益情况：".format(m, interval_to_str[interval]))
         # print(returns_m_days_after_divergence)
         print("当前MACD背离类型：{}".format(macd_divergence_type))
         print("是否底背离：{}".format(macd_divergence_type == '底背离'))  # Added line
@@ -299,12 +306,56 @@ class StockStrategySimulator:
         print("最大收益：{:.2f}%".format(max_gain))
         print("最大亏损：{:.2f}%".format(max_loss))
         print("中位数收益：{:.2f}%".format(median_return))
+        return macd_divergence_type == '底背离', positive_probability, average_return
 
+    @staticmethod
+    def analyze_should_follow(stock_code, m=5, stock_name='', interval_type='daily', start_date='2000-01-01', end_date='2024-03-25'):
+        stock_data = StockStrategySimulator.get_stock_data(stock_code, interval=interval_type, start_date=start_date, end_date=end_date)
+        results = []
+        is_golden_across, prob, eval = StockStrategySimulator.analyze_stock_data_macd_kdj(stock_data, stock_name=stock_name, interval=interval_type)
+        if is_golden_across:
+            results.append((prob, eval))
+        is_5_trend_break, is_10_trend_break, prob, eval = StockStrategySimulator.analyze_trend_break(stock_data, stock_name=stock_name, interval=interval_type)
+        if is_5_trend_break or is_10_trend_break:
+            results.append((prob, eval))
+        is_trend_start, prob, eval = StockStrategySimulator.analyze_trend_start(stock_data, x=5, m=m, stock_name=stock_name, interval=interval_type)
+        if is_trend_start:
+            results.append((prob, eval))
+        is_top_diver, prob, eval = StockStrategySimulator.analyze_macd_divergence_top(stock_data, m=m, stock_name=stock_name, interval=interval_type)
+        if is_top_diver:
+            results.append((prob, eval))
+        is_bottom_diver, prob, eval = StockStrategySimulator.analyze_macd_divergence_bottom(stock_data, m=m, stock_name=stock_name, interval=interval_type)
+        if is_bottom_diver:
+            results.append((prob, eval))
+        expectation = sum(prob * eval for prob, eval in results)
+        expectation /= 100
+        should_buy = '是'
+        if expectation < 0:
+            should_buy = '否'
+        print(f"预期10{interval_to_str[interval_type]}后收益：{expectation:.2f}%，{interval_to_str[interval_type]}级别判断是否应该买入：{should_buy}")
+        return should_buy, expectation, interval_type
 
-stock_code = "sz.000333"
-stock_data = StockStrategySimulator.get_stock_data(stock_code, interval='monthly', start_date='2000-01-01')
-StockStrategySimulator.analyze_stock_data(stock_data)
-StockStrategySimulator.analyze_trend_break(stock_data)
-StockStrategySimulator.analyze_trend_start(stock_data, x=5, stock_name=stock_code)
-StockStrategySimulator.analyze_macd_divergence_top(stock_data, m=5, stock_name=stock_code)
-StockStrategySimulator.analyze_macd_divergence_bottom(stock_data, m=5, stock_name=stock_code)
+# stock_code = "sh.600418"
+interval_type = 'daily'
+# interval_type = 'monthly'
+
+start_date = '2018-01-01'
+end_date = '2024-03-29'
+
+stock_code_code_list = ['sh.600418', 'sh.600733', 'sh.600863', 'sh.600938', 'sh.601127', 'sz.000333', 'sz.000628', 'sz.301236', 'sz.300570']
+# stock_data = StockStrategySimulator.get_stock_data(stock_code, interval=interval_type, start_date='2023-01-01', end_date='2024-03-24')
+# StockStrategySimulator.analyze_stock_data_macd_kdj(stock_data)
+# StockStrategySimulator.analyze_trend_break(stock_data)
+# StockStrategySimulator.analyze_trend_start(stock_data, x=5, stock_name=stock_code)
+# StockStrategySimulator.analyze_macd_divergence_top(stock_data, m=5, stock_name=stock_code)
+# StockStrategySimulator.analyze_macd_divergence_bottom(stock_data, m=5, stock_name=stock_code)
+for stock_code in stock_code_code_list:
+    try:
+        stock_name = str(stock_code)
+        if stock_code in stock_code_to_company:
+            stock_name = stock_code_to_company[stock_code]
+        StockStrategySimulator.analyze_should_follow(stock_code, 5, stock_name, interval_type, start_date, end_date)
+        time.sleep(5)
+    except Exception as e:
+        print(f"{stock_name}:{e}")
+
